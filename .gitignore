@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual env
+venv/
+
+# Data & PGNs (large / reproducible)
+data/
+pgn/
+
+# Model checkpoints (large, can be regenerated)
+checkpoints/
+
+# Other big files / logs
+*.zst
+logs/
