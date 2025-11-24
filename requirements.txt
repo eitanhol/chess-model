@@ -1,5 +1,11 @@
+# Web Server
+flask
+
+# Machine Learning & Math
 torch
 numpy
+
+# Chess Logic & Data Processing
 python-chess
 zstandard
-streamlit
+requests

@@ -3,7 +3,7 @@
 Minimal PGN → JSONL extractor for your chess move model.
 
 Usage:
-    python extract_samples.py input.pgn output.jsonl
+    python extract_samples.py input.pgn output.jsonl [min_rating max_rating]
 """
 
 import sys
@@ -44,7 +44,14 @@ def parse_timecontrol(tc: str):
         return None, None
 
 
-def samples_from_game(game, min_clock_secs=60, enforce_rapid=False, rapid_min_base=600):
+def samples_from_game(
+    game,
+    min_clock_secs=60,
+    enforce_rapid=False,
+    rapid_min_base=600,
+    min_rating=None,
+    max_rating=None,
+):
     """
     Given a python-chess Game, extract training samples:
 
@@ -96,6 +103,16 @@ def samples_from_game(game, min_clock_secs=60, enforce_rapid=False, rapid_min_ba
             last_black_clk = clk
             rating = black_elo
 
+        # Optional per-move rating band filter
+        if (
+            min_rating is not None
+            and max_rating is not None
+            and not (min_rating <= rating <= max_rating)
+        ):
+            # Still advance the board, but don't create a sample
+            board.push(move)
+            continue
+
         # Detect "both players under 60s" in no-increment games
         if no_increment and last_white_clk is not None and last_black_clk is not None:
             if last_white_clk < min_clock_secs and last_black_clk < min_clock_secs:
@@ -119,7 +136,15 @@ def samples_from_game(game, min_clock_secs=60, enforce_rapid=False, rapid_min_ba
     return samples
 
 
-def process_pgn_file(input_path, output_path, min_clock_secs=60, enforce_rapid=False, rapid_min_base=600):
+def process_pgn_file(
+    input_path,
+    output_path,
+    min_clock_secs=60,
+    enforce_rapid=False,
+    rapid_min_base=600,
+    min_rating=None,
+    max_rating=None,
+):
     """Stream through a PGN file and write one JSON object per line to output_path."""
     num_games = 0
     num_samples = 0
@@ -137,25 +162,57 @@ def process_pgn_file(input_path, output_path, min_clock_secs=60, enforce_rapid=F
                 min_clock_secs=min_clock_secs,
                 enforce_rapid=enforce_rapid,
                 rapid_min_base=rapid_min_base,
+                min_rating=min_rating,
+                max_rating=max_rating,
             )
             for s in samples:
                 f_out.write(json.dumps(s) + "\n")
                 num_samples += 1
 
             if num_games % 100 == 0:
-                print(f"Processed {num_games} games, {num_samples} samples so far...", file=sys.stderr)
+                print(
+                    f"Processed {num_games} games, {num_samples} samples so far...",
+                    file=sys.stderr,
+                )
 
-    print(f"Done. Games: {num_games}, samples written: {num_samples}", file=sys.stderr)
+    print(
+        f"Done. Games: {num_games}, samples written: {num_samples}",
+        file=sys.stderr,
+    )
 
 
 def main(argv=None):
     argv = argv or sys.argv[1:]
-    if len(argv) < 2:
-        print("Usage: python extract_samples.py input.pgn output.jsonl", file=sys.stderr)
+    if len(argv) not in (2, 4):
+        print(
+            "Usage: python extract_samples.py input.pgn output.jsonl [min_rating max_rating]",
+            file=sys.stderr,
+        )
         raise SystemExit(1)
 
     input_path, output_path = argv[0], argv[1]
-    process_pgn_file(input_path, output_path, min_clock_secs=60, enforce_rapid=False)
+
+    min_rating = None
+    max_rating = None
+    if len(argv) == 4:
+        try:
+            min_rating = int(argv[2])
+            max_rating = int(argv[3])
+        except ValueError:
+            print(
+                "min_rating and max_rating must be integers",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+
+    process_pgn_file(
+        input_path,
+        output_path,
+        min_clock_secs=60,
+        enforce_rapid=False,
+        min_rating=min_rating,
+        max_rating=max_rating,
+    )
 
 
 if __name__ == "__main__":
